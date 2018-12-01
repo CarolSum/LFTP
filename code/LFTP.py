@@ -44,22 +44,21 @@ class LFTP():
     self.windowSize = 4
     self.socket.settimeout(3) # 设置timeout 3s
 
-  # data 必须是binary类型数据
-  def rdp_send(self, data, addr = '127.0.0.1', port = 9000):
+  def rdp_send(self, data, c_addr):
     # 将data按MAX_DATA_LENGTH划分
     packets = [data[x*MAX_DATA_LENGTH:x*MAX_DATA_LENGTH+MAX_DATA_LENGTH] for x in range(int(len(data)/MAX_DATA_LENGTH)+1)]
     seq_num = 0
     for index,packet in enumerate(packets):
       header = Header(seqNum=seq_num)
       segment = Segment(header=header,data=packet)
-      self.socket.sendto(segment.to_string().encode(), (addr, port))
+      self.socket.sendto(segment.to_string().encode(), c_addr)
       while True:
         try:
           rcv_data,rcv_addr = self.socket.recvfrom(BUFFER_SIZE)
         except:
           # 发生超时
-          print('Send: Receive ACK TIMEOUT...Trying to resend seg-%d to (%s:%s)...' % (index, addr, port))
-          self.socket.sendto(segment.to_string().encode(), (addr, port))
+          print('Send: Receive ACK TIMEOUT...Trying to resend seg-%d to (%s:%s)...' % index, c_addr)
+          self.socket.sendto(segment.to_string().encode(), c_addr)
           continue
         _data = rcv_data.decode()
         _ACK = _data.split(delimeter)[2]
@@ -70,7 +69,7 @@ class LFTP():
           break
     return True
 
-  def rdp_recv(self):
+  def rdp_recv(self, filename, s_addr):
     data = ''
     seq_num = random.randint(1,10)
     cnt = 3
@@ -98,6 +97,8 @@ class LFTP():
     pass
 
   def listen(self):
+    # while True:
+    #   print(self.rdp_recv())
     pass
 
   def accept(self):
