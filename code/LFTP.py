@@ -8,7 +8,7 @@ SERVER_ADDR = '127.0.0.1'
 SERVER_PORT = '9000'
 BUFFER_SIZE = 1024
 
-MAX_DATA_LENGTH = 1460
+MAX_DATA_LENGTH = 512   # Total length/pkt must less than 1024
 
 class Header():
   def __init__(self, seqNum = 0, ackNum = 0, rwnd = 0, checksum = 0, ACK = 0, SYN = 0, FIN = 0):
@@ -77,7 +77,6 @@ class LFTP():
     while True:
       try:
         rcv_data,rcv_addr = self.socket.recvfrom(BUFFER_SIZE)
-        print(rcv_addr)
       except:
         if cnt > 0:
           print('Receive packet TIMEOUT...')
@@ -87,7 +86,7 @@ class LFTP():
           print('Nothing Received. Finish.')
           return data
       _data = rcv_data.decode()
-      header = Header(seqNum=seq_num, ackNum=_data.split(delimeter)[1], ACK=1)
+      header = Header(seqNum=seq_num, ackNum=_data.split(delimeter)[0], ACK=1)
       segment = Segment(header, '')
       self.socket.sendto(segment.to_string().encode(), rcv_addr)
       data += _data.split(delimeter)[7]
