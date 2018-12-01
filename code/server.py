@@ -24,12 +24,12 @@ def server_thread(data, addr):
       s.close()
     else:
       s.sendto('SERVER: ConnectionSetup'.encode(), addr)
-      lftp = LFTP(s)
+      lftp = LFTP(sock=s)
       lftp.rdp_send(filename, addr)
       s.close()
   elif op == 'lsend':
     s.sendto('SERVER: Ready to receive...'.encode(), addr)
-    lftp = LFTP(s)
+    lftp = LFTP(sock=s)
     lftp.rdp_recv(filename, addr)
     s.close()
 

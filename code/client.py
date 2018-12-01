@@ -4,7 +4,7 @@ import os
 
 def main():
   sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-  lftp = LFTP(sock)
+  lftp = LFTP(sock=sock)
   print('Welcome to LFTP Client Side~')
   while True:
     print('Input Your Command: ')
