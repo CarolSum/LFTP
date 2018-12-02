@@ -23,12 +23,12 @@ class Header():
       str(self.END) + delimeter + str(self.rwnd))
 
 class Segment():
-  def __init__(self, header, data = "b''".encode('utf-8')):
+  def __init__(self, header, data = "b''"):
     self.header = header
     self.data = data
   
   def to_string(self):
-    return (self.header.to_string() + delimeter).encode('utf-8') + self.data
+    return self.header.to_string() + delimeter+ str(self.data)
 
 class LFTP():
   def __init__(self, sock):
@@ -123,17 +123,17 @@ class LFTP():
           end = 0
           header = Header(seqNum=seq,ackNum=ack,END=0)
           seg = Segment(header, data)
-          self.socket.sendto(seg.to_string(),c_addr)
+          self.socket.sendto(seg.to_string().encode(),c_addr)
         else:
           end = 1
           cnt+=1
-          data = 'end'.encode('utf-8')
+          data = 'end'
           header = Header(seqNum=seq,ackNum=ack,END=1)
           seg = Segment(header, data)
-          self.socket.sendto(seg.to_string(),c_addr)
+          self.socket.sendto(seg.to_string().encode(),c_addr)
           # 发送成功，等待ack
           recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
-          decode_data = recv_data.decode('utf-8')
+          decode_data = recv_data.decode()
           rwnd = int(decode_data.split('$')[3])
           ack = int(decode_data.split('$')[1])
           print('接受自',recv_addr,'收到数据为：','rwnd = ', rwnd,
@@ -146,7 +146,7 @@ class LFTP():
         if ifRetransmit == False:
           seq = 0
           end = 0
-          data = 'rwnd'.encode('utf-8')
+          data = 'rwnd'
         # 需要重传
         else:
           ack -= 1
@@ -161,13 +161,13 @@ class LFTP():
 
         header = Header(seqNum=seq,ackNum=ack,END=end)
         seg = Segment(header, data)
-        self.socket.sendto(seg.to_string(),c_addr)
+        self.socket.sendto(seg.to_string().encode(),c_addr)
 
       cnt += 1
 
       # 发送成功，等待ack
       recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
-      decode_data = recv_data.decode('utf-8')
+      decode_data = recv_data.decode()
       rwnd = int(decode_data.split('$')[3])
       ack = int(decode_data.split('$')[1])
 
@@ -203,12 +203,12 @@ class LFTP():
 
     while True:
       recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
-      decode_data = recv_data.decode('utf-8')
+      decode_data = recv_data.decode()
       rcv_seq = int(decode_data.split('$')[0])
       rcv_ack = int(decode_data.split('$')[1])
       rcv_end = int(decode_data.split('$')[2])
       rcv_rwnd = int(decode_data.split('$')[3])
-      rcv_data = decode_data.split('$')[4].encode('utf-8')
+      rcv_data = decode_data.split('$')[4]
 
       # 设置随机丢包，并通知客户端要求重发
       random_drop = random.randint(1,200)
@@ -217,7 +217,7 @@ class LFTP():
         # 发送上一个接收到的包的ack
         header = Header(ackNum=rcv_ack-1,rwnd=rwnd)
         seg = Segment(header)
-        self.socket.sendto(seg.to_string(), recv_addr)
+        self.socket.sendto(seg.to_string().encode(), recv_addr)
         continue
 
       cnt += 1
@@ -227,7 +227,7 @@ class LFTP():
         if rcv_ack == 0:
           header = Header(ackNum=rcv_seq,rwnd=rwnd)
           seg = Segment(header)
-          self.socket.sendto(seg.to_string(), recv_addr)
+          self.socket.sendto(seg.to_string().encode(), recv_addr)
           continue
 
         # 要求序号要连续，否则将该包直接丢弃，等待下一个序号包的到来
@@ -236,7 +236,7 @@ class LFTP():
           # 发送上一个接收到的包的ack
           header = Header(ackNum=rcv_ack-1,rwnd=rwnd)
           seg = Segment(header)
-          self.socket.sendto(seg.to_string(), recv_addr)
+          self.socket.sendto(seg.to_string().encode(), recv_addr)
           continue
 
         List.append(decode_data)
@@ -244,11 +244,11 @@ class LFTP():
         # 接收完毕，发送ACK反馈包
         header = Header(ackNum=rcv_seq,rwnd=rwnd)
         seg = Segment(header)
-        self.socket.sendto(seg.to_string(), recv_addr)
+        self.socket.sendto(seg.to_string().encode(), recv_addr)
       else:
         header = Header(ackNum=rcv_seq,rwnd=rwnd)
         seg = Segment(header)
-        self.socket.sendto(seg.to_string(), recv_addr)
+        self.socket.sendto(seg.to_string().encode(), recv_addr)
       print('已接收第',rcv_seq,'个包','rwnd为',rwnd)
       
       # 随机将数据包写入文件，即存在某一时刻不写入，继续接收
