@@ -12028,7 +12028,7 @@ bbs-samp.txt
                                       ***
 
               This is based on an actual news story from September 
-         1993.  The Justice Department did issue a warning to parents 
+         19rwnd93.  The Justice Department did issue a warning to parents 
          advising them to check their children's electronic mail.  
 
               This news release accomplishes several things.  It 
@@ -12148,7 +12148,7 @@ bbs-samp.txt
 
               Obviously, the Justice Department wouldn't raid a BBS 
          over something like this.  But just the same, this is an 
-         example of Crisis Management.  It is a firm statement made at 
+         example of Crisis Management. rwnd It is a firm statement made at 
          a News Conference, and an invitation that representatives of 
          the BBS are open to meet with members of the media.
 
@@ -14038,7 +14038,7 @@ bbs-pr1.txt
 
 
 
-         the immediate public relations problems that could occur as a 
+rwnd         the immediate public relations problems that could occur as a 
          direct result of the features of your BBS.  Since this file 
          goes into depth about particular items on your BBS that may 
          cause some Public Relations problems, we won't discuss it in 

@@ -3,13 +3,12 @@ import enum
 import random
 import time
 
-
 delimeter = '$'
 SERVER_ADDR = '127.0.0.1'
 SERVER_PORT = '9000'
-BUFFER_SIZE = 1024
+BUFFER_SIZE = 1024 + 32
 
-MAX_DATA_LENGTH = 512   # Total length/pkt must less than 1024
+MAX_DATA_LENGTH = 1024   # Total length/pkt must less than 1024
 
 class Header():
   def __init__(self, seqNum = 0, ackNum = 0, END = 0, rwnd = 0):
@@ -27,9 +26,6 @@ class Segment():
     self.header = header
     self.data = data
   
-  def to_string(self):
-    return self.header.to_string() + delimeter+ str(self.data)
-
   def encode_str(self):
     return (self.header.to_string() + delimeter).encode() + self.data
 
@@ -37,35 +33,36 @@ class LFTP():
   def __init__(self, sock):
     # initial data
     self.socket = sock
-    self.MSS = 1
-    self.windowSize = 4
+    # 接收窗口rwnd = RcvBuffer - [LastByteRcvd - LastßyteRead ] 
+    self.rwnd = 50
     self.socket.settimeout(1) # 设置timeout 1s
+    # 判断rwnd是否已满
+    self.ifRwndFull = False
+    # 判断是否需要重传
+    self.ifRetransmit = False
+    # 判断是否遇到阻塞
+    self.congested = False
+    # 判断线性增长
+    self.congestion_avoidance = False
+    # 拥塞窗口的阈值
+    self.threshold = 25
 
   def rdp_send(self, filename, c_addr):
-    print(c_addr)
     f = open(filename,'rb')
+    self.ifRwndFull = False
+    self.ifRetransmit = False
+    self.congested = False
+    self.congestion_avoidance = False
+    self.threshold = 25
+
+    # 发送包的数量
     cnt = 1
-    # 判断rwnd是否为0
-    ifRwndFull = False
-    # 判断是否需要重传
-    ifRetransmit = False
     # 下一个需要传的包的序号seq
     currentSeqNum = 1
-
     # 拥塞窗口cwnd,初始化为1，慢启动
     cwnd = 1
-    # 空列表用于暂时保存数据包
-    List = []
-    # 拥塞窗口的阈值threshold,初始化为25
-    threshold = 25
-    # 判断是否遇到阻塞
-    congested = False
-    # 判断线性增长
-    congestion_avoidance = False
-
-
-    # 添加BUFFER暂时存储上一个发送过的包，当丢包发生时执行重传操作
-    packet_buffer = ['hello']
+    # 发送包缓存, 保存最近发送的包
+    pkt_buffer = [b'']
 
     while True:
       seq = cnt
@@ -77,51 +74,48 @@ class LFTP():
       if random_send <= 2:
         # cwnd等于之前的阈值，新阈值等于遭遇阻塞时cwnd的一半
         temp = cwnd
-        cwnd = threshold
-        threshold = int(temp/2)+1
-        congested = True
-        congestion_avoidance = True
+        cwnd = self.threshold
+        self.threshold = int(temp/2)+1
+        self.congested = True
+        self.congestion_avoidance = True
       else:
-        congested = False
+        self.congested = False
 
       # 线路阻塞，停止发送，线程先休息0.1秒，稍后再继续发送
-      if congested == True:
+      if self.congested == True:
         print('传输线路遇到阻塞，将cwnd快速恢复至', cwnd)
         time.sleep(0.1)
-        congested = False
+        self.congested = False
         continue
 
       # 接收窗口未满，正常发送
-      if ifRwndFull == False:
+      if self.ifRwndFull == False:
         # 不需要重传
-        if ifRetransmit == False:
+        if self.ifRetransmit == False:
           data = f.read(MAX_DATA_LENGTH)
-          print(data)
-          print(len(data))
-
           # 阻塞控制
           # cwnd小于阈值，慢启动，指数增加
-          if cwnd < threshold and congestion_avoidance == False:
+          if cwnd < self.threshold and self.congestion_avoidance == False:
             cwnd *= 2
           # 否则，线性增加
           else:
             cwnd += 1
-            congestion_avoidance = True
+            self.congestion_avoidance = True
         # 需要重传
         else:
           ack -= 1
           seq -= 1
           cnt -= 1
-          print('需要重传的包序号为 seq = ',seq,'出现丢包事件，将cwnd调整为 cwnd = ',threshold)
-          data = packet_buffer[0]
+          print('需要重传的包序号为 seq = ',seq,'出现丢包事件，将cwnd调整为 cwnd = ',self.threshold)
+          data = pkt_buffer[0]
           # cwnd等于之前的阈值，新阈值等于遭遇阻塞时cwnd的一半
           temp = cwnd
-          cwnd = threshold
-          threshold = int(temp/2)+1
+          cwnd = self.threshold
+          self.threshold = int(temp/2)+1
 
-        del packet_buffer[0]
+        del pkt_buffer[0]
         # 暂存下要传输的包，用于重传机制
-        packet_buffer.append(data)
+        pkt_buffer.append(data)
         currentSeqNum = seq
 
         if str(data) != "b''":
@@ -138,9 +132,9 @@ class LFTP():
           self.socket.sendto(seg.encode_str(),c_addr)
           # 发送成功，等待ack
           recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
-          decode_data = recv_data.decode()
-          rwnd = int(decode_data.split('$')[3])
-          ack = int(decode_data.split('$')[1])
+          decode_data = self.segment_split(recv_data)
+          rwnd = decode_data[3]
+          ack = decode_data[1]
           print('接受自',recv_addr,'收到数据为：','rwnd = ', rwnd,
               'ack = ', ack,'发送方的数据：cwnd = ', cwnd)
           break
@@ -148,7 +142,7 @@ class LFTP():
       # 接收窗口满了，发确认rwnd的包
       else:
         # 不需要重传
-        if ifRetransmit == False:
+        if self.ifRetransmit == False:
           seq = 0
           end = 0
           data = 'rwnd'.encode()
@@ -157,11 +151,11 @@ class LFTP():
           ack -= 1
           seq -= 1
           cnt -= 1
-          data = packet_buffer[0]
+          data = pkt_buffer[0]
       
-        del packet_buffer[0]
+        del pkt_buffer[0]
         # 暂存下要传输的包，用于重传机制
-        packet_buffer.append(data)
+        pkt_buffer.append(data)
         currentSeqNum = seq
 
         header = Header(seqNum=seq,ackNum=ack,END=end)
@@ -172,22 +166,22 @@ class LFTP():
 
       # 发送成功，等待ack
       recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
-      decode_data = recv_data.decode()
-      rwnd = int(decode_data.split('$')[3])
-      ack = int(decode_data.split('$')[1])
+      decode_data = self.segment_split(recv_data)
+      rwnd = decode_data[3]
+      ack = decode_data[1]
 
       # 判断是否丢包
       if ack != currentSeqNum:
         print('收到重复的ACK包: ack=',ack)
-        ifRetransmit = True
+        self.ifRetransmit = True
       else:
-        ifRetransmit = False
+        self.ifRetransmit = False
 
       # 判断rwnd是否已经满了
       if rwnd == 0:
-        ifRwndFull = True
+        self.ifRwndFull = True
       else:
-        ifRwndFull = False
+        self.ifRwndFull = False
       
       print('接受自',recv_addr,'收到数据为：','rwnd = ', rwnd,
                   'ack = ', ack,'发送方的数据：cwnd = ', cwnd)
@@ -196,41 +190,34 @@ class LFTP():
 
 
   def rdp_recv(self, filename, s_addr):
-    print(s_addr)
-    # 暂时固定文件目录
     f = open(filename,'wb')
+    self.rwnd = 50
+    # 接收缓存
+    recv_buffer = []
     cnt = 1
-
-    # 接收窗口rwnd,rwnd = RcvBuffer - [LastByteRcvd - LastßyteRead ] 
-    rwnd = 50
-    # 空列表用于暂时保存数据包
-    List = []
-
     while True:
       recv_data,recv_addr = self.socket.recvfrom(BUFFER_SIZE)
       res =  self.segment_split(recv_data)      
       rcv_seq = res[0]
       rcv_ack = res[1]
       rcv_end = res[2]
-      rcv_rwnd = res[3]
-      rcv_data = res[4]
 
       # 设置随机丢包，并通知客户端要求重发
       random_drop = random.randint(1,200)
       if random_drop == 11:
         print('接收方已丢失第',rcv_seq,'个包,要求发送方重发')
         # 发送上一个接收到的包的ack
-        header = Header(ackNum=rcv_ack-1,rwnd=rwnd)
+        header = Header(ackNum=rcv_ack-1,rwnd=self.rwnd)
         seg = Segment(header)
         self.socket.sendto(seg.encode_str(), recv_addr)
         continue
 
       cnt += 1
-      if rwnd > 0:
+      if self.rwnd > 0:
         # 服务端为确认rwnd的变化，会继续发送字节为1的包，这里我设置seq为-1代表服务端的确认
         # 此时直接跳过处理这个包，返回rwnd的大小
         if rcv_ack == 0:
-          header = Header(ackNum=rcv_seq,rwnd=rwnd)
+          header = Header(ackNum=rcv_seq,rwnd=self.rwnd)
           seg = Segment(header)
           self.socket.sendto(seg.encode_str(), recv_addr)
           continue
@@ -239,55 +226,54 @@ class LFTP():
         if rcv_ack != cnt-1:
           print('服务端接收第',rcv_seq,'个包的序号不正确,要求服务器重发')
           # 发送上一个接收到的包的ack
-          header = Header(ackNum=rcv_ack-1,rwnd=rwnd)
+          header = Header(ackNum=rcv_ack-1,rwnd=self.rwnd)
           seg = Segment(header)
           self.socket.sendto(seg.encode_str(), recv_addr)
           continue
 
-        List.append(recv_data)
-        rwnd -= 1
+        recv_buffer.append(recv_data)
+        self.rwnd -= 1
         # 接收完毕，发送ACK反馈包
-        header = Header(ackNum=rcv_seq,rwnd=rwnd)
+        header = Header(ackNum=rcv_seq,rwnd=self.rwnd)
         seg = Segment(header)
         self.socket.sendto(seg.encode_str(), recv_addr)
       else:
-        header = Header(ackNum=rcv_seq,rwnd=rwnd)
+        header = Header(ackNum=rcv_seq,rwnd=self.rwnd)
         seg = Segment(header)
         self.socket.sendto(seg.encode_str(), recv_addr)
-      print('已接收第',rcv_seq,'个包','rwnd为',rwnd)
+      print('已接收第',rcv_seq,'个包','rwnd为',self.rwnd)
       
       # 随机将数据包写入文件，即存在某一时刻不写入，继续接收
       random_write = random.randint(1,10)
       random_num = random.randint(1,100)
       # 40%机率写入文件,读入文件数也是随机数
       if random_write > 6:
-        while len(List) > random_num:
-          recv_data = List[0]
+        while len(recv_buffer) > random_num:
+          recv_data = recv_buffer[0]
           split_result =  self.segment_split(recv_data)      
           end = split_result[2]
           data = split_result[4]
 
-          del List[0]
-          rwnd += 1
+          del recv_buffer[0]
+          self.rwnd += 1
           if end != 1:
             f.write(data)
           else:
             break
-      print(len(List),'end:',rcv_end)
-      # 接收完毕，但是要处理剩下在List中的数据包
+      print(len(recv_buffer),'end:',rcv_end)
+      # 接收完毕，但是要处理剩下在recv_buffer中的数据包
       if rcv_end == 1:
         break                       
-    # 处理剩下在List中的数据包
-    while len(List) > 0:
-      recv_data = List[0]
+    # 处理剩下在recv_buffer中的数据包
+    while len(recv_buffer) > 0:
+      recv_data = recv_buffer[0]
       split_result =  self.segment_split(recv_data)      
       end = split_result[2]
       data = split_result[4]
-      
-      del List[0]
-      rwnd += 1
+
+      del recv_buffer[0]
+      self.rwnd += 1
       if end != 1:
-        print(data)
         f.write(data)
       else:
         break
@@ -295,15 +281,13 @@ class LFTP():
     print('文件接收完成，一共收了'+str(cnt),'个包')
     f.close()
 
+  # 对接收到的segment进行切分, 以分离header和data
   def segment_split(self, recv_data):
     count = 0
     begin = -1
     while count < 4:
       begin = recv_data.find('$'.encode(), begin+1)
       count+=1
-    print(len(recv_data))
-    print(begin)
-    print(recv_data[:begin+1])
     raw_data = recv_data[begin+1:]
     header_bytes = recv_data[:begin+1]
 

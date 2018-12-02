@@ -10,7 +10,7 @@ def main():
   lftp = LFTP(sock=sock)
   print('Welcome to LFTP Client Side~')
   while True:
-    print('Input Your Command: ')
+    print('Input Your Command: (Type "quit" to exit.)')
     command = input('eg: LFTP [lsend | lget] [server_addr:port] [filename]\n')
     pattern = re.compile(r'(LFTP) (lsend|lget) (\S+):(\S+) (\S+)')
     match = pattern.match(command)
@@ -33,7 +33,6 @@ def main():
       sock.sendto((op+','+filename).encode(), (server_addr,int(server_port)))
       data,s_addr = sock.recvfrom(1024)
       if data.decode() == 'SERVER: Ready to receive...':
-        # file size should be very small
         lftp.rdp_send(filename, s_addr)
         print(filename + ' send successfully')
 
