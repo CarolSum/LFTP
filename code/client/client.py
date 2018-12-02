@@ -1,6 +1,9 @@
-from LFTP import *
 import re
 import os
+import sys
+import socket
+sys.path.append("..")
+from LFTP import *
 
 def main():
   sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -27,16 +30,16 @@ def main():
         print('File not found.')
         continue
       # 请求发送文件
-      sock.sendto((op+','+filename).encode(), (server_addr,server_port))
+      sock.sendto((op+','+filename).encode(), (server_addr,int(server_port)))
       data,s_addr = sock.recvfrom(1024)
       if data.decode() == 'SERVER: Ready to receive...':
         # file size should be very small
-        lftp.rdp_send(filename, (server_addr,server_port))
+        lftp.rdp_send(filename, s_addr)
         print(filename + ' send successfully')
 
     elif op == 'lget':
       # 从服务器获取文件
-      sock.sendto((op+','+filename).encode(), (server_addr,server_port))
+      sock.sendto((op+','+filename).encode(), (server_addr,int(server_port)))
       data,s_addr = sock.recvfrom(1024)
       if data.decode() == 'SERVER: FileNotFound':
         print('File Not Found On Server.')

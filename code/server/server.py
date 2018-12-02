@@ -1,7 +1,10 @@
+import sys
+sys.path.append('..')
 from LFTP import *
 import socket
 import threading
 import os
+
 
 PORT = 9000
 
@@ -10,6 +13,7 @@ data: 'lget,file1.txt' | 'lsend,file1.txt'
 '''
 def server_thread(data, addr):
   recv_data = data.decode()
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   try:
     op = recv_data.split(',')[0]
     filename = recv_data.split(',')[1]
@@ -17,7 +21,6 @@ def server_thread(data, addr):
     print('Something goes wrong.')
     return
   if op == 'lget':
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     if not os.path.exists(filename):
       # FileNotFound
       s.sendto('SERVER: FileNotFound'.encode(), addr)
@@ -37,7 +40,11 @@ def main():
   sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
   sock.bind(('127.0.0.1', PORT))
   while True:
-    rcv_data, rcv_addr = sock.recvfrom(1024)
+    try:
+      rcv_data, rcv_addr = sock.recvfrom(1024)
+      print(rcv_data)
+    except:
+      continue
     # 多线程处理请求
     mThread = threading.Thread(target=server_thread,args=(rcv_data, rcv_addr))
     mThread.start()
