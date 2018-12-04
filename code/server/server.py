@@ -22,7 +22,7 @@ def server_thread(data, addr):
     return
   if op == 'lget':
     if not os.path.exists(filename):
-      # FileNotFound
+      # 未找到文件
       s.sendto('SERVER: FileNotFound'.encode(), addr)
       s.close()
     else:

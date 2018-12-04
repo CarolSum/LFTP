@@ -34,17 +34,17 @@ def main():
       data,s_addr = sock.recvfrom(1024)
       if data.decode() == 'SERVER: Ready to receive...':
         lftp.rdp_send(filename, s_addr)
-        print(filename + ' send successfully')
+        print(filename + ' has been transmited successfully!')
 
     elif op == 'lget':
       # 从服务器获取文件
       sock.sendto((op+','+filename).encode(), (server_addr,int(server_port)))
       data,s_addr = sock.recvfrom(1024)
       if data.decode() == 'SERVER: FileNotFound':
-        print('File Not Found On Server.')
+        print('Server has not found the file!')
       elif data.decode() == 'SERVER: ConnectionSetup':
         lftp.rdp_recv(filename, s_addr)
-        print('Received ' + filename + ' successfully.')
+        print('Recived ' + filename + ' Successfully.')
 
 
 if __name__ == '__main__':

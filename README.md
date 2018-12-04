@@ -22,10 +22,12 @@ Simply setup server.py and wait for connections from clients.
 
 ## Todo
 
-- [ ] lsend & lget
-- [ ] segment structure
-- [ ] reliable data transfer
-- [ ] flow control
-- [ ] congestion control
-- [ ] multithread support
-- [ ] debug info
+- [x] lsend & lget
+- [x] segment structure
+- [x] reliable data transfer
+- [x] flow control
+- [x] congestion control
+- [x] multithread support
+- [x] debug info
+
+*Remote Connection Maybe Not Work*

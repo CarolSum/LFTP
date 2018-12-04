@@ -35,7 +35,7 @@ class LFTP():
     self.socket = sock
     # 接收窗口rwnd = RcvBuffer - [LastByteRcvd - LastßyteRead ] 
     self.rwnd = 50
-    self.socket.settimeout(1) # 设置timeout 1s
+    self.socket.settimeout(3) # 设置timeout 3s
     # 判断rwnd是否已满
     self.ifRwndFull = False
     # 判断是否需要重传
@@ -83,7 +83,7 @@ class LFTP():
 
       # 线路阻塞，停止发送，线程先休息0.1秒，稍后再继续发送
       if self.congested == True:
-        print('传输线路遇到阻塞，将cwnd快速恢复至', cwnd)
+        print('Congestion happend, set cwnd = ', cwnd)
         time.sleep(0.1)
         self.congested = False
         continue
@@ -106,7 +106,7 @@ class LFTP():
           ack -= 1
           seq -= 1
           cnt -= 1
-          print('需要重传的包序号为 seq = ',seq,'出现丢包事件，将cwnd调整为 cwnd = ',self.threshold)
+          print('The seq of retransmited package is: seq = ',seq,'. Package has been lost, set cwnd = ',self.threshold)
           data = pkt_buffer[0]
           # cwnd等于之前的阈值，新阈值等于遭遇阻塞时cwnd的一半
           temp = cwnd
@@ -135,8 +135,8 @@ class LFTP():
           decode_data = self.segment_split(recv_data)
           rwnd = decode_data[3]
           ack = decode_data[1]
-          print('接受自',recv_addr,'收到数据为：','rwnd = ', rwnd,
-              'ack = ', ack,'发送方的数据：cwnd = ', cwnd)
+          print('Recived from ',recv_addr,'which data is ','rwnd = ', rwnd,
+              'ack = ', ack,'Sender data：cwnd = ', cwnd)
           break
 
       # 接收窗口满了，发确认rwnd的包
@@ -172,7 +172,7 @@ class LFTP():
 
       # 判断是否丢包
       if ack != currentSeqNum:
-        print('收到重复的ACK包: ack=',ack)
+        print('Recived duplication ack : ack=',ack)
         self.ifRetransmit = True
       else:
         self.ifRetransmit = False
@@ -183,9 +183,8 @@ class LFTP():
       else:
         self.ifRwndFull = False
       
-      print('接受自',recv_addr,'收到数据为：','rwnd = ', rwnd,
-                  'ack = ', ack,'发送方的数据：cwnd = ', cwnd)
-    print('文件发送完成，一共发了'+str(cnt),'个包')
+      print('Reciver data: ','rwnd = ', rwnd,'ack = ', ack,'Sender data：cwnd = ', cwnd)
+    print('File transmition completed! Statictis: has transmited '+ str(cnt),' packages')
     f.close()
 
 
@@ -205,7 +204,7 @@ class LFTP():
       # 设置随机丢包，并通知客户端要求重发
       random_drop = random.randint(1,200)
       if random_drop == 11:
-        print('接收方已丢失第',rcv_seq,'个包,要求发送方重发')
+        print('Reciver has lost No. ',rcv_seq,' packages, requesting for retransmition……')
         # 发送上一个接收到的包的ack
         header = Header(ackNum=rcv_ack-1,rwnd=self.rwnd)
         seg = Segment(header)
@@ -224,7 +223,7 @@ class LFTP():
 
         # 要求序号要连续，否则将该包直接丢弃，等待下一个序号包的到来
         if rcv_ack != cnt-1:
-          print('服务端接收第',rcv_seq,'个包的序号不正确,要求服务器重发')
+          print('Server has recived No. ',rcv_seq,' which is not needed, requesting for retransmition……')
           # 发送上一个接收到的包的ack
           header = Header(ackNum=rcv_ack-1,rwnd=self.rwnd)
           seg = Segment(header)
@@ -241,7 +240,7 @@ class LFTP():
         header = Header(ackNum=rcv_seq,rwnd=self.rwnd)
         seg = Segment(header)
         self.socket.sendto(seg.encode_str(), recv_addr)
-      print('已接收第',rcv_seq,'个包','rwnd为',self.rwnd)
+      print('Now, recived No. ',rcv_seq,', whoes rwnd is ',self.rwnd,' the end is: ',rcv_end,'……')
       
       # 随机将数据包写入文件，即存在某一时刻不写入，继续接收
       random_write = random.randint(1,10)
@@ -260,7 +259,6 @@ class LFTP():
             f.write(data)
           else:
             break
-      print(len(recv_buffer),'end:',rcv_end)
       # 接收完毕，但是要处理剩下在recv_buffer中的数据包
       if rcv_end == 1:
         break                       
@@ -278,7 +276,7 @@ class LFTP():
       else:
         break
         
-    print('文件接收完成，一共收了'+str(cnt),'个包')
+    print('File transmition completed! Statictis: has transmited '+str(cnt),' packages.')
     f.close()
 
   # 对接收到的segment进行切分, 以分离header和data
